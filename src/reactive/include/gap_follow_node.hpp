@@ -31,6 +31,7 @@ private:
     double deviation_penalty_ = 0.5;
 
     double filtered_steering_angle_ = 0.0;
+    double commanded_steering_angle_ = 0.0;
 
     /// @brief Callback invoked each time we find a valid gap from the laser scan.
     /// @param gap_msg Shared pointer to the incoming Gap message.

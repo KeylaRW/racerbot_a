@@ -125,12 +125,11 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
     filtered_steering_angle_ = std::clamp(filtered_steering_angle_, -max_steering_angle_, max_steering_angle_);
 
     double velocity = angle_to_speed_function(filtered_steering_angle_);
+    commanded_steering_angle_ = steering_gain_ * filtered_steering_angle_;
 
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
     drive_msg.header.stamp = this->now();
-
-    drive_msg.drive.steering_angle = steering_gain_ * filtered_steering_angle_;
-
+    drive_msg.drive.steering_angle = commanded_steering_angle_;
     drive_msg.drive.speed = velocity;
     drive_pub_->publish(drive_msg);
 }
@@ -171,8 +170,8 @@ double GapFollowNode::compute_steering_angle(Eigen::VectorXd coefficients, Eigen
 {
     double theta_min = std::max(theta.minCoeff(), -max_steering_angle_);
     double theta_max = std::min(theta.maxCoeff(), max_steering_angle_);
-    
-    double best_theta = filtered_steering_angle_;
+
+    double best_theta = commanded_steering_angle_;
     double best_score = -std::numeric_limits<double>::max();
 
     for (int i = 0; i <= k_samples_; i++)
@@ -182,7 +181,7 @@ double GapFollowNode::compute_steering_angle(Eigen::VectorXd coefficients, Eigen
         if (predicted_r >= max_lookahead) continue;
 
         // penalize deviation from where the car is currently pointed (i.e. influence the car to drive straighter)
-        double score = predicted_r - deviation_penalty_ * std::abs(t - filtered_steering_angle_);
+        double score = predicted_r - deviation_penalty_ * std::abs(t - commanded_steering_angle_);
         
         if (score > best_score)
         {
