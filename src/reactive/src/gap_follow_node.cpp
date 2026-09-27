@@ -169,9 +169,10 @@ double GapFollowNode::get_curve_output(double x, Eigen::VectorXd coefficients)
 
 double GapFollowNode::compute_steering_angle(Eigen::VectorXd coefficients, Eigen::VectorXd theta, double max_lookahead)
 {
-    double theta_min = theta.minCoeff();
-    double theta_max = theta.maxCoeff();
-    double best_theta = theta_min;
+    double theta_min = std::max(theta.minCoeff(), -max_steering_angle_);
+    double theta_max = std::min(theta.maxCoeff(), max_steering_angle_);
+    
+    double best_theta = filtered_steering_angle_;
     double best_score = -std::numeric_limits<double>::max();
 
     for (int i = 0; i <= k_samples_; i++)
