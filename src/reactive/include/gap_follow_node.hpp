@@ -28,6 +28,7 @@ private:
     double min_speed_ = 0.25;
     double hysteresis_alpha_ = 0.3;
     double speed_curve_scale_ = 1.0;
+    double deviation_penalty_ = 0.5;
 
     double filtered_steering_angle_ = 0.0;
 

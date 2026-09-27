@@ -71,6 +71,11 @@ def generate_launch_description():
         default_value="1.0",
         description="Scale factor for the steering-to-speed curve",
     )
+    deviation_penalty = DeclareLaunchArgument(
+        "deviation_penalty",
+        default_value="0.5",
+        description="Penalty for the car steering away from the current heading",
+    )
 
     return LaunchDescription(
         [
@@ -85,6 +90,7 @@ def generate_launch_description():
             min_speed,
             hysteresis_alpha,
             speed_curve_scale,
+            deviation_penalty,
             # Launch gap_finder_node
             Node(
                 package="reactive",
@@ -108,13 +114,12 @@ def generate_launch_description():
                         "degree": LaunchConfiguration("least_squares_degree"),
                         "steering_gain": LaunchConfiguration("steering_gain"),
                         "k_samples": LaunchConfiguration("k_samples"),
-                        "max_steering_angle": LaunchConfiguration(
-                            "max_steering_angle"
-                        ),
+                        "max_steering_angle": LaunchConfiguration("max_steering_angle"),
                         "max_speed": LaunchConfiguration("max_speed"),
                         "min_speed": LaunchConfiguration("min_speed"),
                         "hysteresis_alpha": LaunchConfiguration("hysteresis_alpha"),
                         "speed_curve_scale": LaunchConfiguration("speed_curve_scale"),
+                        "deviation_penalty": LaunchConfiguration("deviation_penalty"),
                     }
                 ],
             ),
@@ -127,7 +132,7 @@ def generate_launch_description():
                 parameters=[
                     {
                         "enable_deadman": LaunchConfiguration("enable_deadman"),
-                        "enable_ttc":  LaunchConfiguration("enable_ttc")
+                        "enable_ttc": LaunchConfiguration("enable_ttc"),
                     }
                 ],
             ),
