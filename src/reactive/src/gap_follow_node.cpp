@@ -19,7 +19,7 @@ GapFollowNode::GapFollowNode() : Node("gap_follow_node")
     this->declare_parameter("min_speed", 0.5);
     this->declare_parameter("hysteresis_alpha", 0.3);
     this->declare_parameter("speed_curve_scale", 1.0);
-    this->declare_parameter("deviation_penalty", 0.5);
+    this->declare_parameter("max_slew_rate", 170.0);
 
     use_fallback_method_ = this->get_parameter("use_fallback_method").as_bool();
     RCLCPP_INFO(this->get_logger(), "Using follow method: '%s'", use_fallback_method_ ? "drive_best_point" : "least_squares");
@@ -32,7 +32,7 @@ GapFollowNode::GapFollowNode() : Node("gap_follow_node")
     min_speed_ = this->get_parameter("min_speed").as_double();
     hysteresis_alpha_ = this->get_parameter("hysteresis_alpha").as_double();
     speed_curve_scale_ = this->get_parameter("speed_curve_scale").as_double();
-    deviation_penalty_ = this->get_parameter("deviation_penalty").as_double();
+    max_slew_rate_ = this->get_parameter("max_slew_rate").as_double();
 }
 
 void GapFollowNode::gap_callback(const reactive::msg::Gap::ConstSharedPtr gap_msg)
@@ -120,9 +120,15 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
 
     double steering_angle = compute_steering_angle(coefficients, theta, max_lookahead);
 
-    // hysteresis to ease between turning angles
+    double now_sec = this->now().seconds();
+    double dt = (last_callback_time_ > 0.0) ? (now_sec - last_callback_time_) : 0.02;
+    last_callback_time_ = now_sec;
+
     filtered_steering_angle_ = hysteresis_alpha_ * steering_angle + (1 - hysteresis_alpha_) * filtered_steering_angle_;
-    filtered_steering_angle_ = std::clamp(filtered_steering_angle_, -max_steering_angle_, max_steering_angle_);
+
+    double max_delta = max_slew_rate_ * dt; // new param, rad/sec
+    double delta = std::clamp(filtered_steering_angle_ - commanded_steering_angle_, -max_delta, max_delta);
+    commanded_steering_angle_ = std::clamp(commanded_steering_angle_ + delta, -max_steering_angle_, max_steering_angle_);
 
     double velocity = angle_to_speed_function(filtered_steering_angle_);
     commanded_steering_angle_ = steering_gain_ * filtered_steering_angle_;
@@ -171,8 +177,8 @@ double GapFollowNode::compute_steering_angle(Eigen::VectorXd coefficients, Eigen
     double theta_min = std::max(theta.minCoeff(), -max_steering_angle_);
     double theta_max = std::min(theta.maxCoeff(), max_steering_angle_);
 
-    double best_theta = commanded_steering_angle_;
-    double best_score = -std::numeric_limits<double>::max();
+    double best_theta = theta_min;
+    double best_range = -std::numeric_limits<double>::max();
 
     for (int i = 0; i <= k_samples_; i++)
     {
@@ -180,12 +186,9 @@ double GapFollowNode::compute_steering_angle(Eigen::VectorXd coefficients, Eigen
         double predicted_r = get_curve_output(t, coefficients);
         if (predicted_r >= max_lookahead) continue;
 
-        // penalize deviation from where the car is currently pointed (i.e. influence the car to drive straighter)
-        double score = predicted_r - deviation_penalty_ * std::abs(t - commanded_steering_angle_);
-        
-        if (score > best_score)
+        if (predicted_r > best_range)
         {
-            best_score = score;
+            best_range = predicted_r;
             best_theta = t;
         }
     }

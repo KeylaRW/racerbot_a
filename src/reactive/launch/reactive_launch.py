@@ -71,10 +71,10 @@ def generate_launch_description():
         default_value="1.0",
         description="Scale factor for the steering-to-speed curve",
     )
-    deviation_penalty = DeclareLaunchArgument(
-        "deviation_penalty",
-        default_value="0.5",
-        description="Penalty for the car steering away from the current heading",
+    max_slew_rate = DeclareLaunchArgument(
+        "max_slew_rate",
+        default_value="170.0",
+        description="Maximum rate of change of commanded steering angle, in degrees/sec.",
     )
 
     return LaunchDescription(
@@ -90,7 +90,7 @@ def generate_launch_description():
             min_speed,
             hysteresis_alpha,
             speed_curve_scale,
-            deviation_penalty,
+            max_slew_rate,
             # Launch gap_finder_node
             Node(
                 package="reactive",
@@ -119,7 +119,7 @@ def generate_launch_description():
                         "min_speed": LaunchConfiguration("min_speed"),
                         "hysteresis_alpha": LaunchConfiguration("hysteresis_alpha"),
                         "speed_curve_scale": LaunchConfiguration("speed_curve_scale"),
-                        "deviation_penalty": LaunchConfiguration("deviation_penalty"),
+                        "max_slew_rate": LaunchConfiguration("max_slew_rate"),
                     }
                 ],
             ),
