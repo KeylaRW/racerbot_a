@@ -129,7 +129,7 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
     drive_msg.header.stamp = this->now();
 
-    drive_msg.drive.steering_angle = filtered_steering_angle_;
+    drive_msg.drive.steering_angle = steering_gain_ * filtered_steering_angle_;
 
     drive_msg.drive.speed = velocity;
     drive_pub_->publish(drive_msg);
