@@ -50,11 +50,11 @@ Contains notes and learnings from testing in simulation, on the car, and from le
 
 ### TF Systems
 
-**Issue:** the car tracks its own motion by counting wheel turns and steering angle (dead reckoning). This is smooth and fast, but drifts over time from wheel slip, tire wear, and hardware imperfections. (this live estimate is the `odom` frame.)
+**Issue:** the car tracks its own motion by counting wheel turns and steering angle (dead reckoning). This is fast and smooth, but drifts over time from wheel slip, tire wear, and other real-world imperfections, so the tracked position slowly stops matching the car's true position. TF systems manage this offset, instead of one single number for the car's location. ROS keeps several different position estimates as separately named coordinate frames, so the one that always drifts (dead reckoning estimate or `odom` frame) can be corrected later without being thrown out or restarted.
 
 **Frames and the tree**
 - Every coordinate frame (`map`, `odom`, `base_link`, sensor frames) sits in one tree, and each frame has exactly one parent. (Set by [REP 105](https://www.ros.org/reps/rep-0105.html), the official ROS spec for robot frames.)
-- Fixed parts on the car (sensor mounts) publish a static transform once. Moving things publish a live one continuously.
+- Fixed parts on the car (sensor mounts) publish a static transform once, onto a topic called `/tf_static`. Moving things, like `odom → base_link`, publish continuously, onto a topic called `/tf`. Every message on either topic has the same shape: a parent frame, a child frame, and the rotation plus translation between them, sent as a `TransformStamped` ([ROS 2 tf2 tutorials](https://docs.ros.org/en/humble/Tutorials/Intermediate/Tf2/Writing-A-Tf2-Listener-Cpp.html)).
 - Any node can ask "where is X relative to Y" and tf2 chains the pieces together, using [tf2 tutorials, ROS 2 docs](https://docs.ros.org/en/humble/Tutorials/Intermediate/Tf2/Writing-A-Tf2-Listener-Cpp.html) as the reference.
 
 **Order**
@@ -64,23 +64,29 @@ Contains notes and learnings from testing in simulation, on the car, and from le
 - `map`: tied to the saved track map. Accurate long term, but can jump when localization corrects it.
 - Map and odom can't both attach straight to base_link. A frame can only have one parent, so they have to be stacked.
 
-![image](https://github.com/user-attachments/assets/8ea4d426-5d16-4cf7-b944-fdc7f856afce)
+![frame order](assets/frame%20order.png)
 
-**Odometry (`odom → base_link`)**
-- Published by whatever reads the wheels/VESC (plus IMU if we fuse it), at a high steady rate.
-- This is what our reactive nodes actually use (wall follow, follow the gap, pure pursuit) since they only need recent motion, not a global position.
+**Sensor frames (example: `laser_frame`)**
+- Sensors only know the world in their own frame of reference. A LiDAR point returns a distance from a wall and its angle, which is  measured from the sensor itself, in `laser_frame`. On its own, we cannot tell exactly where the point is relative to the car.
+- When LiDAR is mounted, we measure exactly how close `laser_frame` sits relative to `base_link` (for example, 15cm forward of the axle, facing straight ahead), and publish that as a static transform. (This never changes since the components are bolted down.)
+- Applying that transform is what allows us to make sense of the LiDAR readings, using the static transform as a frame of reference (ex. LiDAR scans 2m ahead of sensor -> 2m ahead of front right axle). Specifically, it is a rigid body transform, a rotation and a translation, no stretching, since the sensor and chassis don't flex relative to each other ([ROS 2 tf2 tutorials](https://docs.ros.org/en/humble/Tutorials/Intermediate/Tf2/Writing-A-Tf2-Listener-Cpp.html)).
+- Because `base_link` already chains up to `odom` and `map`, that same LiDAR point can then be expressed relative to either of those too. The LiDAR node never needs to know odometry or localization exist.
+- `imu_frame` works the same way, a fixed offset to `base_link`, so IMU readings can be used in the car's own frame.
+
+**Odometry (`odom` frame and `odom → base_link` transform)**
+- Whatever node reads the wheels/VESC (plus IMU if fused) does two separate things with the result:
+  1. Publishes it as data, a `nav_msgs/Odometry` message on a topic (`/odom`), carrying the robots pose and its velocity, for anything that wants the actual numbers, like an EKF or a logger ([nav_msgs/Odometry message](https://docs.ros.org/en/jazzy/p/nav_msgs/msg/Odometry.html)).
+  2.  Publishes the matching `odom → base_link` transform onto `/tf`, at the same rate, so any node can ask where the car is relative to odom without subscribing to that topic or caring about velocity.
+- These two are easy to mix up, they usually come from the same node and the same numbers, but they do different jobs. The topic is data to read, the transform is for chaining coordinate frames. Our reactive nodes mostly only need the transform.
+- This is what wall follow, ftg, and pure pursuit use, since they only need recent motion rather than a global position.
 - Reliable odometry is also what our TTC safety logic needs (see Safety above).
 
-
 **Splitting up `map` and `odom`**
-- Speed: localization updates slower (10 to 40Hz) than control needs (50 to 100+Hz). Splitting allows fast nodes work asynchronously with slow nodes.
-- Safety: jumps only ever happen in `map` to `odom`. `map` to `base_link` never jumps, so PID and follow the gap never get destabilized mid turn.
+- Speed: localization updates slower (10 to 40Hz) than control needs (50 to 100+Hz). Splitting lets fast nodes work asynchronously with slow nodes.
+- Safety: jumps only ever happen in map to odom. Odom to base_link never jumps, so PID and follow the gap never get destabilized mid turn.
 - Simplicity: anything that wants the car's map position (costmap, raceline follower, RViz) just asks for it, and tf2 chains map, odom, and base_link together automatically.
 
-
-**Debugging:** use `ros2 run tf2_ros tf2_echo  ` to show a live transform, and use `ros2 run rqt_tf_tree rqt_tf_tree` to see the whole tree for debugging purposes.
-
-
+**Debugging:** use `ros2 run tf2_ros tf2_echo` to show a live transform, and use `ros2 run rqt_tf_tree rqt_tf_tree` to see the whole tree for debugging purposes.
 
 ## AI Driving
 
