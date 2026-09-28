@@ -42,8 +42,16 @@ Contains notes and learnings from testing in simulation, on the car, and from le
 
 
 ### Least Squares
-
-(No notes yet.)
+- Car seemed to drive in "S-Curves" on straightaways
+- Hypothesis was that the car would come out of turns slightly turned, drive towards a wall and then compensate, causing it to drive to the other wall. This process compounded over time and resulted in the "S-Curves"
+- Deviation Penalty
+    - Apply a penalty that influences the car to drive straight based on a penalty factor
+    - No matter what values were tried for the penalty factor, the car either drove straight into a wall or the penalty had 0 effect
+- Limiting the angle returned from the function that determined steering angle to the car's turning range also had no effect
+- Slew rate limiter
+    - Capped how fast the turning angle could change per callback tick, rather than how far obstacles could be.
+    - This allowed for more smoother turns and helped the car stay straight coming out of turns
+    - This fixed the "S-Curves" issue
 
 ## Mapping Driving
 
