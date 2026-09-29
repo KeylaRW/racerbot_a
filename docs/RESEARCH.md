@@ -84,7 +84,6 @@ Contains notes and learnings from testing in simulation, on the car, and from le
 - Instead, a localization node (SLAM) calculates the exact amount of accumulated drift and publishes a `map → odom` transform. This acts as an offset, shifting the entire `odom` frame back to align with the real-world `map`, ensuring the final `map → base_link` chain is accurate while keeping local movement perfectly smooth.
 
 - These two are easy to mix up, they usually come from the same node and the same numbers, but they do different jobs. The topic is data to read, the transform is for chaining coordinate frames. While purely reactive nodes (ftg) only need static sensor transforms, trajectory trackers that need to track the car's continuous movement in space rely on this odom transform.
-- This is what nodes like pure pursuit use, since they only need recent motion rather than a global position.
 - Reliable odometry is also what our TTC safety logic needs (see Safety above).
 
 **Splitting up `map` and `odom`**
